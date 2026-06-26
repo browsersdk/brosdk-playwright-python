@@ -1,0 +1,12 @@
+{
+  "_comment": "E2E test config template. Copy to e2e.config.json (gitignored) and fill in your API key.",
+  "api_key": "YOUR_BROSDK_API_KEY",
+  "work_dir": "./.brosdk",
+  "customer_id": "default",
+  "port": 0,
+  "lib_path": null,
+  "kernel_version": "134",
+  "test_url": "https://example.com",
+  "launch_timeout": 120,
+  "keep_env": false
+}

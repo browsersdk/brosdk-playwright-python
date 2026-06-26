@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Project runtime artifacts
+.brosdk/
+workDir/
+work_dir/
+sessions.json
+screenshot*.png
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# E2E config (contains secrets — never commit the real one)
+config/e2e.config.json
+config/e2e.config.local.json
+
+# OS
+.DS_Store
+Thumbs.db

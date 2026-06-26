@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brosdk-playwright"
+version = "0.1.0"
+description = "Drop-in Playwright integration for BroSDK fingerprinted browser environments"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "browsersdk" },
+]
+keywords = ["playwright", "browser", "automation", "fingerprint", "brosdk", "cdp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+
+dependencies = [
+    "brosdk>=1.0.0",
+    "playwright>=1.30",
+]
+
+[project.urls]
+Homepage = "https://www.brosdk.com/"
+Repository = "https://github.com/browsersdk/brosdk-playwright-python"
+Documentation = "https://github.com/browsersdk/brosdk-docs"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["brosdk_playwright*"]
+
+[tool.setuptools.package-data]
+brosdk_playwright = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q -m 'not e2e'"
+markers = [
+    "e2e: end-to-end tests requiring a real BroSDK API key and native library (deselected by default; run with `-m e2e`)",
+]
