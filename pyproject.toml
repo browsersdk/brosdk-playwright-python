@@ -41,9 +41,13 @@ Repository = "https://github.com/browsersdk/brosdk-playwright-python"
 Documentation = "https://github.com/browsersdk/brosdk-docs"
 
 [project.optional-dependencies]
+stealth = [
+    "patchright>=1.40",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov",
+    "patchright>=1.40",
 ]
 
 [tool.setuptools.packages.find]

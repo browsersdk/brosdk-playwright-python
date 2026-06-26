@@ -67,6 +67,9 @@ class Config:
     auto_download: bool = True
     # 指定要下载的原生库版本；None=latest
     lib_version: Optional[str] = None
+    # 反检测模式：启用后用 patchright（undetected playwright fork）作为 CDP 连接客户端，
+    # 在 BroSDK 管理的浏览器之上叠加 driver 级反检测补丁（Runtime.enable/Console.enable 泄漏等）
+    stealth: bool = False
     # 是否已显式 configure 过（用于区分"未配置"与"使用默认值"）
     configured: bool = field(default=False, repr=False)
 
@@ -91,6 +94,7 @@ def configure(
     sig_duration: Optional[int] = None,
     auto_download: Optional[bool] = None,
     lib_version: Optional[str] = None,
+    stealth: Optional[bool] = None,
 ) -> Config:
     """配置 BroSDK 全局凭据与工作目录。
 
@@ -107,6 +111,9 @@ def configure(
     :param sig_duration: userSig 有效期（秒），默认 30 天。
     :param auto_download: 找不到原生库时是否自动从 GitHub Releases 下载，默认 True。
     :param lib_version: 指定下载的原生库版本；None=latest。
+    :param stealth: 反检测模式，默认 False。启用后用 patchright（undetected playwright
+        fork）作为 CDP 连接客户端，叠加 driver 级反检测补丁（避免 Runtime.enable /
+        Console.enable 等自动化特征泄漏）。需 ``pip install brosdk-playwright[stealth]``。
     :return: 更新后的 :class:`Config`。
     :raises BroSDKError: 既无 api_key 也无 user_sig 且无对应环境变量。
     """
@@ -122,6 +129,7 @@ def configure(
         sig_duration= sig_duration if sig_duration is not None else 2_592_000,
         auto_download= True if auto_download is None else auto_download,
         lib_version = lib_version or _env("BROSDK_LIB_VERSION"),
+        stealth     = _coerce_bool(stealth, _env("BROSDK_STEALTH")),
         configured  = True,
     )
 
@@ -175,3 +183,12 @@ def _coerce_port(val) -> int:
         return int(val)
     except (TypeError, ValueError):
         return 0
+
+
+def _coerce_bool(explicit: Optional[bool], env_val: Optional[str]) -> bool:
+    """解析 bool 配置：显式参数优先，其次环境变量（1/true/yes/on），默认 False。"""
+    if explicit is not None:
+        return bool(explicit)
+    if env_val is not None:
+        return env_val.strip().lower() in ("1", "true", "yes", "on")
+    return False

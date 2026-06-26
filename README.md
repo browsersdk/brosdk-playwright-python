@@ -121,10 +121,33 @@ bp.configure(
     # lib_path="...",           # 可选：指定动态库路径（缺省时自动查找/下载）
     # auto_download=True,       # 可选：找不到库时自动从 GitHub Releases 下载（默认开启）
     # lib_version="1.0.1.1",    # 可选：指定下载的库版本（默认 latest）
+    # stealth=True,             # 可选：反检测模式（见下文），默认 False
     # port=0,                   # 可选：0=自动分配端口（默认）
     # customer_id="default",    # 可选
 )
 ```
+
+### 反检测模式（Stealth）
+
+BroSDK 已经管理指纹和 Chromium 启动参数（如 `--disable-blink-features=AutomationControlled`），
+但 Playwright 通过 CDP 连接时仍会暴露自动化特征（`Runtime.enable` / `Console.enable` 泄漏等）。
+
+开启 `stealth=True` 后，CDP 连接客户端从 Playwright 切换为 [patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright-python)
+（undetected playwright fork），在 BroSDK 管理的浏览器之上叠加 driver 级反检测补丁，
+可过 Cloudflare / Datadome / Akamai / CreepJS / Sannysoft 等检测。
+
+```python
+bp.configure(api_key="your-api-key", stealth=True)
+```
+
+需先安装可选依赖：
+
+```bash
+pip install brosdk-playwright[stealth]
+```
+
+也可用环境变量 `BROSDK_STEALTH=1` 开启。注意 patchright 仅支持 Chromium 内核
+（与本项目的 BroSDK 流程一致，`firefox`/`webkit` 透传不受影响）。
 
 也支持纯环境变量配置（无需 `configure`）：
 

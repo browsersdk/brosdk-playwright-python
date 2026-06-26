@@ -122,10 +122,35 @@ bp.configure(
     # lib_path="...",           # optional: path to the native library (auto-found/downloaded if omitted)
     # auto_download=True,       # optional: auto-download from GitHub Releases when missing (default on)
     # lib_version="1.0.1.1",    # optional: pin a library version (default latest)
+    # stealth=True,             # optional: anti-detection mode (see below), default False
     # port=0,                   # optional: 0=auto-assign port (default)
     # customer_id="default",    # optional
 )
 ```
+
+### Anti-detection mode (Stealth)
+
+BroSDK already manages fingerprints and Chromium launch flags (e.g.
+`--disable-blink-features=AutomationControlled`), but Playwright's CDP connection
+still leaks automation signals (`Runtime.enable` / `Console.enable` leaks, etc.).
+
+Enabling `stealth=True` swaps the CDP client from Playwright to
+[patchright](https://github.com/Kaliiiiiiiiii-Vinyzu/patchright-python) (an undetected
+playwright fork), layering driver-level anti-detection patches on top of the BroSDK-managed
+browser — passing Cloudflare / Datadome / Akamai / CreepJS / Sannysoft and similar detectors.
+
+```python
+bp.configure(api_key="your-api-key", stealth=True)
+```
+
+Install the optional dependency first:
+
+```bash
+pip install brosdk-playwright[stealth]
+```
+
+Or enable via the `BROSDK_STEALTH=1` env var. Note patchright supports Chromium only
+(which matches this project's BroSDK flow; `firefox`/`webkit` pass-through is unaffected).
 
 Pure env-var configuration is also supported (no `configure` needed):
 
