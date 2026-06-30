@@ -1,0 +1,73 @@
+name: publish
+
+# 打 tag（v* 开头）时自动构建并发布到 PyPI。
+# 使用 PyPI Trusted Publisher（OIDC），无需在仓库里存任何 token。
+on:
+  push:
+    tags:
+      - "v*"
+
+# Trusted Publisher 要求：必须能从仓库上下文拿到权限，且 permissions 显式声明 id-token: write。
+permissions:
+  id-token: write   # 向 PyPI 请求 OIDC token 所必需
+  contents: read    # checkout 代码
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check metadata
+        run: python -m twine check dist/*
+
+      - name: Verify version matches tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          # 从 tag（去掉前导 v）推导期望版本，校验 pyproject 里的版本一致，避免 tag 与代码版本不符
+          EXPECTED="${TAG#v}"
+          ACTUAL=$(python -c "import tomllib,sys; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "tag version: $EXPECTED"
+          echo "pyproject version: $ACTUAL"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then
+            echo "ERROR: tag $TAG does not match pyproject version $ACTUAL"
+            exit 1
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Trusted Publisher 绑定的 environment，需在仓库 Settings → Environments 建一个名为 pypi 的环境
+    # （可加 required reviewers / branch 限制）。若不想要环境约束，删除下面这行并把 publisher 的 environment 留空。
+    environment: pypi
+    permissions:
+      id-token: write   # pypa/gh-action-pypi-publish 用 OIDC 发布
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # Trusted Publisher 模式下不需要 password，由 OIDC 自动获取短期 token
