@@ -92,16 +92,18 @@ class _BroBrowserType:
         """持久化上下文启动。
 
         BroSDK 环境本身就是持久化的（环境级 cookie/storage），因此走 BroSDK 时
-        直接返回一个由 CDP 连接的 Browser 的默认 context，忽略 ``user_data_dir``。
+        返回 CDP 连接的 Browser 的默认 context（即持久化的那个），忽略 ``user_data_dir``。
         """
         if env is None:
             return self._real.launch_persistent_context(**kwargs)
 
         browser = self._launch_via_brosdk(env, **kwargs)
-        # BroSDK 浏览器已带持久化 profile；返回其默认 context 兼容 API
+        # BroSDK 浏览器自带持久化 profile；返回其默认 context 兼容 API。
+        # 通过 connect_over_cdp 连上的浏览器必然有一个默认 context。
         contexts = browser.contexts
         if contexts:
             return contexts[0]
+        # 极端情况（CDP 连上时还没创建 context）：显式建一个
         return browser.new_context()
 
     def _launch_via_brosdk(self, env: dict, **kwargs: Any) -> "_BroBrowser":

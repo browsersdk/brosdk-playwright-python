@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brosdk-playwright"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Drop-in Playwright integration for BroSDK fingerprinted browser environments"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -47,7 +47,6 @@ stealth = [
 dev = [
     "pytest>=7.0",
     "pytest-cov",
-    "patchright>=1.40",
 ]
 
 [tool.setuptools.packages.find]

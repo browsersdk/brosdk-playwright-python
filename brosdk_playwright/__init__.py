@@ -41,7 +41,7 @@ from ._config import (
 from ._sdk import ENV_MANAGER, BroSDKEnvManager
 from .sync_api import sync_playwright
 
-__version__ = "0.1.0a1"
+__version__ = "0.1.0a2"
 
 __all__ = [
     # 入口

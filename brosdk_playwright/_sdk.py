@@ -179,9 +179,32 @@ class BroSDKEnvManager:
                     if p:
                         return p
 
-        # 3) 内层有端口但 envId 不匹配（仍返回，调用方已按 code 过滤）
-        if port:
+        # 3) 内层有端口但 envId 不匹配：可能是其它环境的事件，不返回
+        #    （避免并发多环境时返回错误的端口）。仅当 payload 无 envId 字段时才兜底返回。
+        if port and not inner.get("envId"):
             return port
+        return None
+
+    @staticmethod
+    def _event_env_id(payload: Any) -> Optional[str]:
+        """从事件 payload 中提取 envId（兼容扁平/信封/envList 结构）。"""
+        if not payload:
+            return None
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(payload, dict):
+            return None
+        inner = payload.get("data", payload)
+        if isinstance(inner, str):
+            try:
+                inner = json.loads(inner)
+            except json.JSONDecodeError:
+                inner = {}
+        if isinstance(inner, dict) and inner.get("envId"):
+            return str(inner["envId"])
         return None
 
     # ── 环境 CRUD ──────────────────────────────────────────────────────────
@@ -316,15 +339,20 @@ class BroSDKEnvManager:
         request = json.dumps({"envs": [env_spec]}, ensure_ascii=False)
 
         done = threading.Event()
-        result_holder: Dict[str, Any] = {"port": None, "error": None}
+        result_holder: Dict[str, Any] = {"port": None, "error": None, "last_data": None}
 
         def _on_event(event) -> None:
             code = event.code
+            result_holder["last_data"] = event.data
             if code == EVT_BROWSER_OPEN_SUCCESS:
                 port = self._extract_env_port(event.data, env_id)
                 if port:
                     result_holder["port"] = port
                     done.set()
+                elif _event_env_matches(event.data, env_id):
+                    # envId 匹配但缺 remoteDebuggingPort：是真实异常，停止等待并报错
+                    done.set()
+                # envId 不匹配：其它环境的事件，静默忽略继续等待
             elif code in (EVT_BROWSER_OPEN_FAILED, EVT_BROWSER_OPEN_TIMEOUT):
                 result_holder["error"] = (
                     f"browser open {'failed' if code == EVT_BROWSER_OPEN_FAILED else 'timeout'} "
@@ -341,7 +369,8 @@ class BroSDKEnvManager:
 
             if not done.wait(timeout=timeout):
                 raise BroSDKError(
-                    f"browser open timed out after {timeout}s for env {env_id}"
+                    f"browser open timed out after {timeout}s for env {env_id} "
+                    f"(last event: {result_holder['last_data']!r})"
                 )
 
             if result_holder["error"]:
@@ -349,9 +378,10 @@ class BroSDKEnvManager:
 
             port = result_holder["port"]
             if not port:
+                # 收到了 browser-open-success 但没解析出端口（envId 不匹配或 payload 异常）
                 raise BroSDKError(
                     f"browser-open-success received but no remoteDebuggingPort for env {env_id}: "
-                    f"{event.data if 'event' in dir() else ''}"
+                    f"{result_holder['last_data']!r}"
                 )
             logger.info("browser launched: env=%s cdp_port=%d", env_id, port)
             return port
@@ -431,6 +461,15 @@ def _to_int(val: Any) -> Optional[int]:
         return int(val)
     except (TypeError, ValueError):
         return None
+
+
+def _event_env_matches(payload: Any, env_id: str) -> bool:
+    """判断事件 payload 中的 envId 是否匹配给定 env_id。
+
+    用于区分"其它环境的事件"（应忽略）与"本环境但缺端口"（应报错）。
+    """
+    eid = BroSDKEnvManager._event_env_id(payload)
+    return eid is not None and eid == str(env_id)
 
 
 def _default_lib_path() -> str:

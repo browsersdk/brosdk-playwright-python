@@ -26,6 +26,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 import zipfile
 from typing import Optional, Tuple
@@ -140,10 +141,24 @@ def _download(url: str, dest_path: str, progress: bool = True) -> None:
         sys.stdout.write(f"\r  下载中: [{bar}] {pct}% ({mb_d:.1f}/{mb_t:.1f} MB)")
         sys.stdout.flush()
 
+    max_attempts = 3
+    last_exc = None
     try:
-        urllib.request.urlretrieve(url, dest_path, reporthook=_reporthook)
-    except Exception as exc:
-        raise BroSDKError(f"Failed to download {url}: {exc}") from exc
+        for attempt in range(1, max_attempts + 1):
+            try:
+                urllib.request.urlretrieve(url, dest_path, reporthook=_reporthook)
+                return
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if attempt < max_attempts:
+                    logger.warning("Download attempt %d/%d failed (%s); retrying...", attempt, max_attempts, exc)
+                    # 删除可能写了一半的文件再重试
+                    try:
+                        os.remove(dest_path)
+                    except OSError:
+                        pass
+                    time.sleep(1.5 * attempt)
+        raise BroSDKError(f"Failed to download {url} after {max_attempts} attempts: {last_exc}") from last_exc
     finally:
         if progress:
             sys.stdout.write("\n")

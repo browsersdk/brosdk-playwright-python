@@ -15,6 +15,7 @@ import pytest
 from brosdk_playwright._config import BroSDKError
 from brosdk_playwright._sdk import (
     ENV_MANAGER,
+    EVT_BROWSER_OPEN,
     EVT_BROWSER_OPEN_FAILED,
     EVT_BROWSER_OPEN_SUCCESS,
     EVT_BROWSER_OPEN_TIMEOUT,
@@ -59,6 +60,39 @@ def test_launch_browser_browser_open_rejected(manager_with_fake, fake_manager):
     fake_manager.browser_open_should_raise = "rejected by SDK"
     with pytest.raises(BroSDKError, match="rejected"):
         ENV_MANAGER.launch_browser("env-1", timeout=5)
+
+
+def test_launch_browser_success_without_port_includes_event(manager_with_fake, fake_manager):
+    """收到 20111 且 envId 匹配，但 payload 缺 remoteDebuggingPort → 错误信息含事件数据。"""
+    fake_manager.open_events = [
+        FakeSdkEvent(EVT_BROWSER_OPEN_SUCCESS, '{"type":"browser-open-success","data":{"envId":"env-1","cdpReady":true}}'),
+    ]
+    with pytest.raises(BroSDKError, match="no remoteDebuggingPort") as exc_info:
+        ENV_MANAGER.launch_browser("env-1", timeout=5)
+    # 错误信息应包含最后的事件数据
+    assert "env-1" in str(exc_info.value)
+
+
+def test_launch_browser_unmatched_env_times_out(manager_with_fake, fake_manager):
+    """收到 20111 但 envId 不匹配（其它环境的事件）→ 不触发 done，最终超时。"""
+    fake_manager.open_events = [
+        FakeSdkEvent(EVT_BROWSER_OPEN_SUCCESS, '{"type":"browser-open-success","data":{"envId":"other-env","remoteDebuggingPort":9999}}'),
+    ]
+    with pytest.raises(BroSDKError, match="timed out") as exc_info:
+        ENV_MANAGER.launch_browser("env-1", timeout=0.3)
+    # 超时信息应包含最后收到的事件
+    assert "other-env" in str(exc_info.value)
+
+
+def test_launch_browser_no_event_timeout_includes_last(manager_with_fake, fake_manager):
+    """超时错误信息应包含最后一次收到的事件（若有）。"""
+    fake_manager.open_events = [
+        FakeSdkEvent(EVT_BROWSER_OPEN, '{"type":"browser-open","data":{"envId":"env-1"}}'),
+    ]
+    # EVT_BROWSER_OPEN(20110) 不触发 done.set，故 wait 会超时
+    with pytest.raises(BroSDKError, match="timed out") as exc_info:
+        ENV_MANAGER.launch_browser("env-1", timeout=0.3)
+    assert "browser-open" in str(exc_info.value)
 
 
 def test_launch_browser_adds_remote_debugging_port_zero(manager_with_fake, fake_manager):

@@ -16,6 +16,7 @@ import pytest
 from brosdk_playwright._config import BroSDKError
 from brosdk_playwright._downloader import (
     _PLATFORM_MAP,
+    _download,
     _extract,
     _resolve_asset,
     default_lib_filename,
@@ -167,6 +168,43 @@ def test_extract_no_lib_found_raises(tmp_path):
         zf.writestr("readme.txt", b"no dll here")
     with pytest.raises(BroSDKError, match="found no native library"):
         _extract(archive, str(tmp_path / "out"), "test.zip")
+
+
+# ── 下载重试 ──────────────────────────────────────────────────────────────────
+
+def test_download_retries_then_succeeds(monkeypatch, tmp_path):
+    """前两次失败、第三次成功 → 应重试并成功。"""
+    import brosdk_playwright._downloader as dl
+
+    calls = {"n": 0}
+    dest = str(tmp_path / "out.zip")
+
+    def flaky_urlretrieve(url, dest_path, reporthook=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise OSError("network flaky")
+        _make_zip_with_dll(dest_path, "brosdk.dll")
+
+    monkeypatch.setattr(dl.urllib.request, "urlretrieve", flaky_urlretrieve)
+    # 加速：跳过重试间的 sleep
+    monkeypatch.setattr(dl.time, "sleep", lambda *_: None)
+
+    _download("http://x/test.zip", dest, progress=False)
+    assert calls["n"] == 3
+    assert os.path.exists(dest)
+
+
+def test_download_fails_after_max_attempts(monkeypatch, tmp_path):
+    """连续失败超过重试上限 → 抛 BroSDKError，信息含 attempts 数。"""
+    import brosdk_playwright._downloader as dl
+
+    def always_fail(url, dest_path, reporthook=None):
+        raise OSError("network down")
+
+    monkeypatch.setattr(dl.urllib.request, "urlretrieve", always_fail)
+
+    with pytest.raises(BroSDKError, match="after 3 attempts"):
+        _download("http://x/test.zip", str(tmp_path / "out.zip"), progress=False)
 
 
 # ── download_native_lib 端到端（mock 下载，真实解压）─────────────────────────
